@@ -5,6 +5,26 @@ import ctypes
 import platform
 import sys
 
+class NN_IOVEC(ctypes.Structure):
+    _fields_ = [("iov_base", ctypes.c_void_p),
+                ("iov_len", ctypes.c_size_t)]
+
+class NN_MSGHDR(ctypes.Structure):
+    _fields_ = [("msg_iov", ctypes.POINTER(NN_IOVEC)), # ctypes.c_void_p),
+                ("msg_iovlen", ctypes.c_int),
+                ("msg_control", ctypes.c_void_p),
+                ("msg_controllen", ctypes.c_size_t)]
+
+    def __init__(self, iovecList):
+        elems = (NN_IOVEC * len(iovecList))()
+        self.msg_iovlen = len(iovecList)
+        self.msg_iov = ctypes.cast(elems, ctypes.POINTER(NN_IOVEC))
+        for i in range(0, len(iovecList)):
+            self.msg_iov[i].iov_base = iovecList[i].iov_base
+            self.msg_iov[i].iov_len = iovecList[i].iov_len
+        self.msg_controllen = 0
+        self.msg_control = 0
+
 if sys.platform in ('win32', 'cygwin'):
     _functype = ctypes.WINFUNCTYPE
     _lib = ctypes.windll.nanomsg
@@ -33,7 +53,7 @@ def _c_func_wrapper_factory(cdecl_text):
             'void *': ctypes.c_void_p,
             'size_t':  ctypes.c_size_t,
             'size_t *':  ctypes.POINTER(ctypes.c_size_t),
-            'struct nn_msghdr *': ctypes.c_void_p,
+            'struct nn_msghdr *': ctypes.POINTER(NN_MSGHDR),
             'struct nn_pollfd *': ctypes.c_void_p,
         }
         type_def_without_const = type_def.replace('const ','')
@@ -130,6 +150,16 @@ nn_connect.__doc__ = "add a remote endpoint to the socket"
 nn_shutdown = _nn_shutdown
 nn_shutdown.__doc__ = "remove an endpoint from a socket"
 
+# struct nn_iovec {
+#     void *iov_base;
+#     size_t iov_len;
+# };
+# struct nn_msghdr {
+#     struct nn_iovec *msg_iov;
+#     int msg_iovlen;
+#     void *msg_control;
+#     size_t msg_controllen;
+# };
 
 def create_writable_buffer(size):
     """Returns a writable buffer.
@@ -263,6 +293,29 @@ def nn_recv(socket, *args):
         rtn = _nn_recv(socket, ctypes.addressof(msg_buf), len(mv_buf), flags)
         return rtn, msg_buf
 
+def nn_recvmsg(socket, sizes = None):
+    "receive message/messages"
+    if sizes:
+        iovecList = []
+        for sz in sizes:
+            iovec = NN_IOVEC()
+            iovec.iov_len = sz
+            buf = (ctypes.c_char * sz)()
+            iovec.iov_base = ctypes.cast(buf, ctypes.c_void_p)
+            iovecList.append(iovec)
+        msgHdr = NN_MSGHDR(iovecList)
+        # pointer_type = ctypes.POINTER(NN_MSGHDR)
+        # pp = pointer_type.from_address(ctypes.addressof(msgHdr))
+        pp = ctypes.pointer(msgHdr)
+        # pp = ctypes.byref(msgHdr)
+        print("argument type: "+str(pp))
+        print("function arguments: "+str(_nn_recvmsg.argtypes))
+        rtn = _nn_recvmsg(socket, pp, 0)
+        print("here's the result: "+str(rtn))
+        if rtn < 0 : 
+            print(nn_strerror(nn_errno()))
+    else:
+        pass # tbd
 
 nn_device = _nn_device
 nn_device.__doc__ = "start a device"
