@@ -25,6 +25,12 @@ class NN_MSGHDR(ctypes.Structure):
         self.msg_controllen = 0
         self.msg_control = 0
 
+#    def from_param(self, obj):
+#    	if obj is None:
+#		return c_void_p()
+#	else:
+#		return ctypes.POINTER(obj)
+
 if sys.platform in ('win32', 'cygwin'):
     _functype = ctypes.WINFUNCTYPE
     _lib = ctypes.windll.nanomsg
@@ -113,6 +119,7 @@ for cdecl_text in _C_HEADER.splitlines():
     if cdecl_text.strip():
         func = _c_func_wrapper_factory(cdecl_text)
         globals()['_' + func.__name__] = func
+	print("registered "  + str(func.__name__) + ":" + str(func.argtypes))
 
 
 def nn_symbols():
@@ -304,11 +311,11 @@ def nn_recvmsg(socket, sizes = None):
             iovec.iov_base = ctypes.cast(buf, ctypes.c_void_p)
             iovecList.append(iovec)
         msgHdr = NN_MSGHDR(iovecList)
-        # pointer_type = ctypes.POINTER(NN_MSGHDR)
-        # pp = pointer_type.from_address(ctypes.addressof(msgHdr))
         pp = ctypes.pointer(msgHdr)
+        # pp = pointer_type.from_address(ctypes.addressof(msgHdr))
+        # pp = ctypes.pointer(msgHdr)
         # pp = ctypes.byref(msgHdr)
-        print("argument type: "+str(pp))
+        print("arguments : "+str(socket)+", " + str(pp) + str(0))
         print("function arguments: "+str(_nn_recvmsg.argtypes))
         rtn = _nn_recvmsg(socket, pp, 0)
         print("here's the result: "+str(rtn))
